@@ -48,23 +48,18 @@
     if (changed) refreshKeyUi();
   });
   function syncInlineAi() {
-    document.querySelectorAll("[data-mentari-ai-reply][data-provider]").forEach((b) => {
-      b.style.display = hasKey[b.dataset.provider] ? "inline-flex" : "none";
-    });
+    aiBars.forEach((bar) => { if (bar.isConnected) bar.__render(); else aiBars.delete(bar); });
   }
   // AI untuk Auto Kuis: pilihan di pengaturan, atau AI lain yang key-nya ada.
   function quizProvider() {
     if (hasKey[settings.autoKuisProvider]) return settings.autoKuisProvider;
     return Object.keys(hasKey).find((p) => hasKey[p]) || null;
   }
-  const INLINE_AI = [
-    { provider: "groq", kind: "answer", text: "⚡ AI Groq", color: "#7C3AED" },
-    { provider: "classai", kind: "answer", text: "🧠 AI Haiku", color: "#C2410C" },
-    { provider: "groq", kind: "question", text: "❓ Tanya Groq", color: "#0E7490" },
-    { provider: "classai", kind: "question", text: "❓ Tanya Haiku", color: "#B45309" },
-    { provider: "deepseek", kind: "answer", text: "🐋 AI DeepSeek", color: "#1D4ED8" },
-    { provider: "deepseek", kind: "question", text: "❓ Tanya DeepSeek", color: "#0369A1" }
-  ];
+  // Bar AI di atas tombol Reply: urutan, nama pendek & warna penanda tiap AI.
+  const AI_ORDER = ["groq", "classai", "deepseek"];
+  const AI_SHORT = { groq: "Groq", classai: "Haiku", deepseek: "DeepSeek" };
+  const AI_DOT = { groq: "#8B5CF6", classai: "#F97316", deepseek: "#3B82F6" };
+  const aiBars = new Set();
 
   // ---------------------------------------------------------------- deteksi
   function detect() {
@@ -863,11 +858,7 @@
     fq.value = question;
     saveDraft();
 
-    aiBtn.disabled = true;
-    const origText = aiBtn.textContent;
-    aiBtn.textContent = `⏳ ${PROVIDER_LABEL[provider]}...`;
-    aiBtn.style.opacity = "0.7";
-    aiBtn.style.cursor = "wait";
+    setInlineBusy(aiBtn, true);
 
     try {
       const res = await chrome.runtime.sendMessage({
@@ -914,11 +905,83 @@
     } catch (err) {
       toast("❌ Extension dimuat ulang — refresh halaman ini");
     } finally {
-      aiBtn.disabled = false;
-      aiBtn.textContent = origText;
-      aiBtn.style.opacity = "1";
-      aiBtn.style.cursor = "pointer";
+      setInlineBusy(aiBtn, false);
     }
+  }
+
+  // Tombol yang sedang memproses: titik berdenyut & latar menyala (nama AI tetap terbaca),
+  // tombol lain di bar dinonaktifkan sementara.
+  function setInlineBusy(btn, busy) {
+    const root = btn.getRootNode();
+    root.querySelectorAll?.("button[data-provider]").forEach((b) => { b.disabled = busy; });
+    btn.classList.toggle("busy", busy);
+    btn.setAttribute("aria-busy", busy ? "true" : "false");
+    btn.title = busy ? `${PROVIDER_LABEL[btn.dataset.provider]} sedang menulis…` : btn.dataset.title || btn.title;
+  }
+
+  const AIBAR_CSS = `
+    :host { display: block; color: inherit; font: inherit; margin: 6px 0 10px;
+            container-type: inline-size; }
+    .bar { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 8px 18px; }
+    .group { display: flex; align-items: center; gap: 8px; min-width: 0; }
+    .mode { font-size: 13px; font-weight: 600; opacity: .8; white-space: nowrap; }
+    .seg { display: inline-flex; border: 1px solid rgba(127,127,127,.38); border-radius: 9px;
+           overflow: hidden; background: rgba(127,127,127,.10); }
+    button { all: unset; box-sizing: border-box; display: inline-flex; align-items: center; justify-content: center;
+             gap: 7px; padding: 7px 12px; font-family: inherit; font-size: 13px; font-weight: 600; line-height: 1.2; color: inherit;
+             cursor: pointer; white-space: nowrap; min-height: 34px; }
+    button + button { border-left: 1px solid rgba(127,127,127,.38); }
+    button:hover:not(:disabled) { background: rgba(127,127,127,.16); }
+    button:focus-visible { outline: 2px solid currentColor; outline-offset: -3px; border-radius: 6px; }
+    button:disabled { cursor: default; opacity: .45; }
+    button.busy { opacity: 1; cursor: progress; background: rgba(127,127,127,.26); }
+    .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+    button.busy .dot { animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 50% { transform: scale(.55); opacity: .5; } }
+    @media (prefers-reduced-motion: reduce) { button.busy .dot { animation: none; } }
+    /* Layar sempit (HP): tiap grup satu baris penuh, tombol dibagi rata supaya nama AI tidak terpotong */
+    @container (max-width: 560px) {
+      .bar { flex-direction: column; align-items: stretch; gap: 8px; }
+      .group { display: grid; grid-template-columns: 4.2em 1fr; }
+      .seg { display: flex; }
+      .seg button { flex: 1 1 0; padding: 8px 6px; min-width: 0; }
+    }
+  `;
+
+  function buildAiBar(replyBtn) {
+    const host = document.createElement("div");
+    host.setAttribute("data-mentari-ai-reply", "1");
+    host.__replyBtn = replyBtn;
+    const sh = host.attachShadow({ mode: "open" });
+    host.__render = () => {
+      const active = AI_ORDER.filter((p) => hasKey[p]);
+      host.style.display = active.length ? "" : "none";
+      sh.innerHTML = `<style>${AIBAR_CSS}</style><div class="bar" role="group" aria-label="Bantuan AI untuk balasan"></div>`;
+      const bar = sh.querySelector(".bar");
+      [["answer", "✦ Jawab", "Buat jawaban pakai"], ["question", "? Tanya", "Buat pertanyaan diskusi pakai"]].forEach(([kind, mode, verb]) => {
+        const group = document.createElement("div");
+        group.className = "group";
+        group.innerHTML = `<span class="mode">${mode}</span><span class="seg"></span>`;
+        const seg = group.querySelector(".seg");
+        active.forEach((provider) => {
+          const b = document.createElement("button");
+          b.type = "button";
+          b.dataset.provider = provider;
+          b.title = b.dataset.title = `${verb} ${PROVIDER_LABEL[provider]}, lalu isi ke kolom reply`;
+          b.innerHTML = `<span class="dot" style="background:${AI_DOT[provider]}"></span><span class="name">${AI_SHORT[provider]}</span>`;
+          b.addEventListener("click", (ev) => {
+            ev.preventDefault();
+            ev.stopPropagation();
+            handleInlineForumAi(host.__replyBtn, b, provider, kind);
+          });
+          seg.appendChild(b);
+        });
+        bar.appendChild(group);
+      });
+    };
+    host.__render();
+    aiBars.add(host);
+    return host;
   }
 
   function injectForumReplyAiButtons() {
@@ -929,48 +992,24 @@
       if (replyBtn.hasAttribute("data-mentari-ai-reply")) return;
       if (!isVisible(replyBtn)) return;
       if (!/^(reply|balas)$/i.test(cleanBtnText(replyBtn))) return;
+      if (replyBtn.__mentariBar?.isConnected) return;
 
-      const parent = replyBtn.parentElement;
-      if (!parent) return;
-      if (parent.querySelector('[data-mentari-ai-reply="1"]')) return;
-
-      INLINE_AI.forEach(({ provider, kind, text, color }) => {
-        const aiBtn = document.createElement("button");
-        aiBtn.type = "button";
-        aiBtn.setAttribute("data-mentari-ai-reply", "1");
-        aiBtn.setAttribute("data-provider", provider);
-        aiBtn.textContent = text;
-        aiBtn.title = kind === "question"
-          ? `Buat pertanyaan diskusi pakai ${PROVIDER_LABEL[provider]} dan isi ke kolom reply`
-          : `Buat jawaban pakai ${PROVIDER_LABEL[provider]} dan langsung isi ke kolom reply`;
-        Object.assign(aiBtn.style, {
-          background: color,
-          color: "#FFFFFF",
-          border: "none",
-          borderRadius: "6px",
-          padding: "6px 12px",
-          marginRight: "8px",
-          fontSize: "13px",
-          fontWeight: "600",
-          fontFamily: 'system-ui, -apple-system, "Segoe UI", sans-serif',
-          cursor: "pointer",
-          display: "inline-flex",
-          alignItems: "center",
-          gap: "5px",
-          lineHeight: "1.4",
-          verticalAlign: "middle",
-          boxShadow: "none"
-        });
-        if (!hasKey[provider]) aiBtn.style.display = "none";
-        aiBtn.addEventListener("mouseenter", () => { if (!aiBtn.disabled) aiBtn.style.filter = "brightness(1.08)"; });
-        aiBtn.addEventListener("mouseleave", () => { aiBtn.style.filter = ""; });
-        aiBtn.addEventListener("click", (ev) => {
-          ev.preventDefault();
-          ev.stopPropagation();
-          handleInlineForumAi(replyBtn, aiBtn, provider, kind);
-        });
-        parent.insertBefore(aiBtn, replyBtn);
-      });
+      const row = replyBtn.parentElement;
+      if (!row) return;
+      // Tombol Reply di-render ulang oleh Mentari: pakai lagi bar yang sudah ada di posisinya.
+      const existing = [row.previousElementSibling, ...row.children].find((el) => el?.__render && el.hasAttribute("data-mentari-ai-reply"));
+      if (existing) { existing.__replyBtn = replyBtn; replyBtn.__mentariBar = existing; return; }
+      const bar = buildAiBar(replyBtn);
+      replyBtn.__mentariBar = bar;
+      // Bar dipasang sebagai baris sendiri di atas baris tombol Reply (bukan dijejalkan di sebelahnya).
+      const rowStyle = getComputedStyle(row);
+      const rowIsInline = rowStyle.display.includes("flex") && !rowStyle.flexDirection.startsWith("column");
+      if (rowIsInline && row.parentElement) {
+        row.parentElement.insertBefore(bar, row);
+      } else {
+        bar.style.flexBasis = "100%";
+        row.insertBefore(bar, replyBtn);
+      }
     });
   }
 

@@ -46,7 +46,7 @@ class MainActivity : Activity() {
     companion object {
         const val HOME_URL = "https://mentari.unpam.ac.id"
         private const val FILE_CHOOSER_REQUEST = 1001
-        private val AI_HOSTS = setOf("api.groq.com", "router.classai.id")
+        private val AI_HOSTS = setOf("api.groq.com", "router.classai.id", "api.deepseek.com")
     }
 
     private lateinit var webView: WebView
@@ -81,7 +81,8 @@ class MainActivity : Activity() {
 
         // Pertama kali dibuka dan belum ada API key sama sekali: langsung buka Pengaturan.
         val secrets = Store.secrets(this)
-        if (!secrets.getBoolean("askedOnce", false) && Store.groqKey(this).isEmpty() && Store.classaiKey(this).isEmpty()) {
+        if (!secrets.getBoolean("askedOnce", false) && Store.groqKey(this).isEmpty() &&
+            Store.classaiKey(this).isEmpty() && Store.deepseekKey(this).isEmpty()) {
             secrets.edit().putBoolean("askedOnce", true).apply()
             startActivity(Intent(this, SettingsActivity::class.java))
         }
@@ -253,7 +254,7 @@ class MainActivity : Activity() {
             runOnUiThread { startActivity(Intent(this@MainActivity, SettingsActivity::class.java)) }
         }
 
-        /** Request ke Groq / ClassAI. API key ditambahkan di sini, tidak pernah dikirim ke JavaScript. */
+        /** Request ke Groq / ClassAI / DeepSeek. API key ditambahkan di sini, tidak pernah dikirim ke JavaScript. */
         @JavascriptInterface
         fun http(id: String, url: String, method: String, headersJson: String, body: String) {
             val target = try { URL(url) } catch (e: Exception) { null }
@@ -270,7 +271,11 @@ class MainActivity : Activity() {
                         readTimeout = 120000
                         val headers = try { JSONObject(headersJson) } catch (_: Exception) { JSONObject() }
                         headers.keys().forEach { k -> setRequestProperty(k, headers.optString(k)) }
-                        val key = if (target.host == "api.groq.com") Store.groqKey(this@MainActivity) else Store.classaiKey(this@MainActivity)
+                        val key = when (target.host) {
+                            "api.groq.com" -> Store.groqKey(this@MainActivity)
+                            "api.deepseek.com" -> Store.deepseekKey(this@MainActivity)
+                            else -> Store.classaiKey(this@MainActivity)
+                        }
                         if (key.isNotEmpty()) setRequestProperty("Authorization", "Bearer $key")
                         if (body.isNotEmpty() && requestMethod != "GET") {
                             doOutput = true

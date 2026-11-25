@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Ikon Mentari Assistant: matahari (mentari) terbit di atas buku terbuka + kilau AI. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <group android:pivotX="54" android:pivotY="55" android:scaleX="0.8" android:scaleY="0.8">
+        <path android:pathData="M54,31 L54,37" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round" />
+        <path android:pathData="M37.7,37.7 L41.9,41.9" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round" />
+        <path android:pathData="M70.3,37.7 L66.1,41.9" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round" />
+        <path android:pathData="M31,54 L37,54" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round" />
+        <path android:pathData="M77,54 L71,54" android:strokeColor="#FFFFFFFF" android:strokeWidth="4" android:strokeLineCap="round" />
+        <path android:pathData="M40,58 a14,14 0 1,0 28,0 a14,14 0 1,0 -28,0 Z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M28,64 C36,61 46,61 54,66 L54,82 C46,77 36,77 28,80 Z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M80,64 C72,61 62,61 54,66 L54,82 C62,77 72,77 80,80 Z" android:fillColor="#FFFFFFFF" />
+        <path android:pathData="M76,26 C77,31 78,32 83,33 C78,34 77,35 76,40 C75,35 74,34 69,33 C74,32 75,31 76,26 Z" android:fillColor="#FFFFFFFF" />
+    </group>
+</vector>

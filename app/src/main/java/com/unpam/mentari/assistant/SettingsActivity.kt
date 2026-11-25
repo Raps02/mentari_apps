@@ -70,12 +70,15 @@ class SettingsActivity : Activity() {
         note("Untuk tombol ⚡ Groq. Ambil di console.groq.com/keys")
         val classai = keyField("ClassAI API Key (sk_live_...)", Store.classaiKey(this))
         note("Untuk tombol 🧠 Haiku (Claude Haiku 5.5). Ambil di router.classai.id")
+        val deepseek = keyField("DeepSeek API Key (sk-...) — opsional", Store.deepseekKey(this))
+        note("Untuk tombol 🐋 DeepSeek. Saldo top-up tidak hangus. Ambil di platform.deepseek.com")
+        note("Tombol AI hanya muncul untuk key yang diisi. Kosongkan key untuk menyembunyikan tombolnya.")
 
         heading("Auto Kuis")
         val autoKuis = check("🤖 Otomatis: mulai kuis dan jawab semua soal saat halaman kuis dibuka", data.optBoolean("autoKuis", true))
         val autoFinish = check("🏁 Otomatis klik Selesai & konfirmasi setelah semua soal terjawab", data.optBoolean("autoKuisFinish", true))
         note("AI untuk Auto Kuis otomatis:")
-        val provider = radios(listOf("groq" to "⚡ Groq", "classai" to "🧠 Claude Haiku 5.5 (ClassAI)"), data.optString("autoKuisProvider", "groq"))
+        val provider = radios(listOf("groq" to "⚡ Groq", "classai" to "🧠 Claude Haiku 5.5 (ClassAI)", "deepseek" to "🐋 DeepSeek"), data.optString("autoKuisProvider", "groq"))
 
         heading("Kuesioner")
         val autoKue = check("Isi kuesioner otomatis saat halaman kuesioner dibuka", data.optBoolean("autoKuesioner", true))
@@ -84,7 +87,7 @@ class SettingsActivity : Activity() {
         col.addView(Button(this).apply {
             text = "Simpan"
             setOnClickListener {
-                Store.setKeys(this@SettingsActivity, groq.text.toString(), classai.text.toString())
+                Store.setKeys(this@SettingsActivity, groq.text.toString(), classai.text.toString(), deepseek.text.toString())
                 Store.put(this@SettingsActivity, "autoKuis", autoKuis.isChecked)
                 Store.put(this@SettingsActivity, "autoKuisFinish", autoFinish.isChecked)
                 Store.put(this@SettingsActivity, "autoKuisProvider", provider.value("groq"))

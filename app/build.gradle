@@ -11,8 +11,8 @@ android {
         applicationId "com.unpam.mentari.assistant"
         minSdk 24
         targetSdk 34
-        versionCode 1
-        versionName "1.9.3"
+        versionCode 2
+        versionName "1.10.1"
         // Tidak ada API key yang ditanam ke APK: key diisi manual di halaman Pengaturan aplikasi.
     }
 

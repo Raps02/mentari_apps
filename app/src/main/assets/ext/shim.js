@@ -1,7 +1,7 @@
 // Shim API chrome.* untuk menjalankan kode extension Mentari Assistant di dalam WebView Android.
 // - chrome.storage.local  -> disimpan di SharedPreferences lewat jembatan MentariAndroid
 // - chrome.runtime        -> pesan antara content.js dan background.js di halaman yang sama
-// - fetch ke Groq/ClassAI -> dikerjakan oleh Kotlin (API key ditambahkan di sisi Kotlin,
+// - fetch ke Groq/ClassAI/DeepSeek -> dikerjakan oleh Kotlin (API key ditambahkan di sisi Kotlin,
 //                            tidak pernah terlihat oleh JavaScript halaman)
 // PENTING: tidak ada objek bawaan browser yang diubah (window.fetch / window.chrome tetap asli),
 // karena verifikasi Cloudflare memeriksanya. API ini hanya diberikan ke kode extension
@@ -108,7 +108,7 @@
   const chromeApi = { storage: { local, onChanged: { addListener(fn) { changeListeners.push(fn); } } }, runtime };
 
   // ---------------------------------------------------------------- fetch AI lewat Kotlin
-  const AI_HOSTS = /^https:\/\/(api\.groq\.com|router\.classai\.id)\//i;
+  const AI_HOSTS = /^https:\/\/(api\.groq\.com|router\.classai\.id|api\.deepseek\.com)\//i;
   const pending = new Map();
   let seq = 0;
   window.__mentariHttpCb = (id, status, body) => {

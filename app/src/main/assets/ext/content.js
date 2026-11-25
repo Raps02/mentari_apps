@@ -30,13 +30,40 @@
   const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
   // Dua penyedia AI dengan tombol terpisah.
-  const PROVIDER_LABEL = { groq: "Groq", classai: "Haiku 5.5" };
-  const QUIZ_BTN_TEXT = { groq: "🤖 Auto Kuis · Groq", classai: "🤖 Auto Kuis · Haiku" };
+  const PROVIDER_LABEL = { groq: "Groq", classai: "Haiku 5.5", deepseek: "DeepSeek" };
+  const QUIZ_BTN_TEXT = { groq: "🤖 Auto Kuis · Groq", classai: "🤖 Auto Kuis · Haiku", deepseek: "🤖 Auto Kuis · DeepSeek" };
+
+  // Tombol AI hanya ditampilkan untuk AI yang API key-nya sudah diisi di pengaturan.
+  const KEY_NAMES = { groq: "groqApiKey", classai: "classaiApiKey", deepseek: "deepseekApiKey" };
+  const hasKey = { groq: false, classai: false, deepseek: false };
+  const anyKey = () => Object.values(hasKey).some(Boolean);
+  function refreshKeyUi() { try { render(); syncInlineAi(); } catch { /* UI belum siap */ } }
+  chrome.storage.local.get(Object.values(KEY_NAMES), (s) => {
+    for (const p in KEY_NAMES) hasKey[p] = !!s[KEY_NAMES[p]];
+    refreshKeyUi();
+  });
+  chrome.storage.onChanged.addListener((c) => {
+    let changed = false;
+    for (const p in KEY_NAMES) if (c[KEY_NAMES[p]]) { hasKey[p] = !!c[KEY_NAMES[p]].newValue; changed = true; }
+    if (changed) refreshKeyUi();
+  });
+  function syncInlineAi() {
+    document.querySelectorAll("[data-mentari-ai-reply][data-provider]").forEach((b) => {
+      b.style.display = hasKey[b.dataset.provider] ? "inline-flex" : "none";
+    });
+  }
+  // AI untuk Auto Kuis: pilihan di pengaturan, atau AI lain yang key-nya ada.
+  function quizProvider() {
+    if (hasKey[settings.autoKuisProvider]) return settings.autoKuisProvider;
+    return Object.keys(hasKey).find((p) => hasKey[p]) || null;
+  }
   const INLINE_AI = [
     { provider: "groq", kind: "answer", text: "⚡ AI Groq", color: "#7C3AED" },
     { provider: "classai", kind: "answer", text: "🧠 AI Haiku", color: "#C2410C" },
     { provider: "groq", kind: "question", text: "❓ Tanya Groq", color: "#0E7490" },
-    { provider: "classai", kind: "question", text: "❓ Tanya Haiku", color: "#B45309" }
+    { provider: "classai", kind: "question", text: "❓ Tanya Haiku", color: "#B45309" },
+    { provider: "deepseek", kind: "answer", text: "🐋 AI DeepSeek", color: "#1D4ED8" },
+    { provider: "deepseek", kind: "question", text: "❓ Tanya DeepSeek", color: "#0369A1" }
   ];
 
   // ---------------------------------------------------------------- deteksi
@@ -539,9 +566,9 @@
 
     quizBusy = true;
     quizAbort = false;
-    quizBtn = provider === "classai" ? btnQuizHaiku : btnQuizGroq;
-    const otherQuizBtn = quizBtn === btnQuizGroq ? btnQuizHaiku : btnQuizGroq;
-    otherQuizBtn.disabled = true;
+    quizBtn = quizBtns[provider] || btnQuizGroq;
+    const otherQuizBtns = Object.values(quizBtns).filter((b) => b !== quizBtn);
+    otherQuizBtns.forEach((b) => (b.disabled = true));
     let totalAnswered = 0;
     let step = 0;
     const MAX_STEPS = 120;
@@ -644,8 +671,8 @@
     } finally {
       quizBusy = false;
       quizAbort = false;
-      quizBtn.textContent = QUIZ_BTN_TEXT[provider];
-      otherQuizBtn.disabled = false;
+      quizBtn.textContent = QUIZ_BTN_TEXT[provider] || QUIZ_BTN_TEXT.groq;
+      otherQuizBtns.forEach((b) => (b.disabled = false));
     }
   }
 
@@ -911,6 +938,7 @@
         const aiBtn = document.createElement("button");
         aiBtn.type = "button";
         aiBtn.setAttribute("data-mentari-ai-reply", "1");
+        aiBtn.setAttribute("data-provider", provider);
         aiBtn.textContent = text;
         aiBtn.title = kind === "question"
           ? `Buat pertanyaan diskusi pakai ${PROVIDER_LABEL[provider]} dan isi ke kolom reply`
@@ -933,6 +961,7 @@
           verticalAlign: "middle",
           boxShadow: "none"
         });
+        if (!hasKey[provider]) aiBtn.style.display = "none";
         aiBtn.addEventListener("mouseenter", () => { if (!aiBtn.disabled) aiBtn.style.filter = "brightness(1.08)"; });
         aiBtn.addEventListener("mouseleave", () => { aiBtn.style.filter = ""; });
         aiBtn.addEventListener("click", (ev) => {
@@ -971,6 +1000,7 @@
       .menu { background: #1E3A8A; }
       .quiz { background: #2563EB; }
       .quiz.haiku, .sum.haiku { background: #C2410C; }
+      .quiz.deep, .sum.deep { background: #1D4ED8; }
       .kue { background: #D97706; }
       .sum { background: #059669; }
       .set { background: #475569; }
@@ -995,6 +1025,8 @@
       .fpanel .gen.haiku { background: #C2410C; }
       .fpanel .gen.ask { background: #0E7490; }
       .fpanel .gen.ask.haiku { background: #B45309; }
+      .fpanel .gen.deep { background: #1D4ED8; }
+      .fpanel .gen.ask.deep { background: #0369A1; }
       .fpanel .copy { background: #059669; }
       .fpanel .ghost { background: #e5e7eb; color: #111827; }
       .fpanel .meta { font-size: 12px; color: #64748b; margin-left: auto; }
@@ -1025,10 +1057,12 @@
     <div class="wrap">
       <button class="quiz hidden" data-act="quiz" data-provider="groq">🤖 Auto Kuis · Groq</button>
       <button class="quiz haiku hidden" data-act="quiz" data-provider="classai">🤖 Auto Kuis · Haiku</button>
+      <button class="quiz deep hidden" data-act="quiz" data-provider="deepseek">🤖 Auto Kuis · DeepSeek</button>
       <button class="kue hidden" data-act="kue">📋 Kuesioner</button>
       <button class="forum hidden" data-act="forum">💬 Forum Diskusi</button>
       <button class="sum hidden" data-act="sum" data-provider="groq">📖 Ringkas · Groq</button>
       <button class="sum haiku hidden" data-act="sum" data-provider="classai">📖 Ringkas · Haiku</button>
+      <button class="sum deep hidden" data-act="sum" data-provider="deepseek">📖 Ringkas · DeepSeek</button>
       <button class="set hidden" data-act="set">⚙️ Pengaturan</button>
       <button class="menu" data-act="menu" title="Tampilkan/sembunyikan fitur lainnya">☰ Fitur lain</button>
     </div>
@@ -1048,10 +1082,12 @@
         </select>
         <button class="gen" data-act="fgen" data-provider="groq">⚡ Jawab · Groq</button>
         <button class="gen haiku" data-act="fgen" data-provider="classai">🧠 Jawab · Haiku</button>
+        <button class="gen deep hidden" data-act="fgen" data-provider="deepseek">🐋 Jawab · DeepSeek</button>
       </div>
       <div class="row">
         <button class="gen ask" data-act="fask" data-provider="groq">❓ Buat Pertanyaan · Groq</button>
         <button class="gen ask haiku" data-act="fask" data-provider="classai">❓ Buat Pertanyaan · Haiku</button>
+        <button class="gen ask deep hidden" data-act="fask" data-provider="deepseek">❓ Buat Pertanyaan · DeepSeek</button>
       </div>
       <label for="fa">Hasil AI: jawaban atau pertanyaan (siap copy-paste)</label>
       <textarea id="fa" class="a" placeholder="Jawaban dari AI muncul di sini..."></textarea>
@@ -1143,6 +1179,8 @@
   const $ = (s) => shadow.querySelector(s);
   const btnQuizGroq = $('[data-act="quiz"][data-provider="groq"]');
   const btnQuizHaiku = $('[data-act="quiz"][data-provider="classai"]');
+  const btnQuizDeep = $('[data-act="quiz"][data-provider="deepseek"]');
+  const quizBtns = { groq: btnQuizGroq, classai: btnQuizHaiku, deepseek: btnQuizDeep };
   const btnKue = $('[data-act="kue"]');
   const btnSums = [...shadow.querySelectorAll('[data-act="sum"]')];
   const sumTitle = $("#sumTitle");
@@ -1182,10 +1220,16 @@
 
   function render() {
     const showQuiz = ctx.isQuiz || (menuOpen && ctx.hasRadios && !ctx.isKuesioner);
-    [btnQuizGroq, btnQuizHaiku].forEach((b) => b.classList.toggle("hidden", !showQuiz));
+    Object.values(quizBtns).forEach((b) => b.classList.toggle("hidden", !showQuiz));
     btnKue.classList.toggle("hidden", !(ctx.isKuesioner || (menuOpen && !ctx.isQuiz)));
     btnSums.forEach((b) => b.classList.toggle("hidden", !menuOpen || ctx.isQuiz));
-    btnForum.classList.toggle("hidden", ctx.isQuiz || !(ctx.isForum || menuOpen));
+    // Sembunyikan tombol AI yang API key-nya kosong
+    shadow.querySelectorAll(".quiz[data-provider], .sum[data-provider]").forEach((b) => {
+      if (!hasKey[b.dataset.provider]) b.classList.add("hidden");
+    });
+    shadow.querySelectorAll(".fpanel [data-provider]").forEach((b) => b.classList.toggle("hidden", !hasKey[b.dataset.provider]));
+    btnForum.classList.toggle("hidden", ctx.isQuiz || !anyKey() || !(ctx.isForum || menuOpen));
+    if (!anyKey()) fpanel.classList.add("hidden");
     btnSet.classList.toggle("hidden", !menuOpen);
   }
 
@@ -1271,8 +1315,10 @@
     }
     if (settings.autoKuis && !quizBusy && !ctx.isForum && !ctx.isKuesioner) {
       // Soal belum tampil -> cari tombol Mulai. Soal sudah tampil -> jawab semua lalu Selesai.
-      if (!getQuizGroups().length) autoStartQuiz();
-      else if (ctx.isQuiz) runAutoQuizAll(true, settings.autoKuisProvider);
+      // Tanpa API key sama sekali: jangan mulai kuis (waktunya jalan tapi tidak ada AI yang menjawab).
+      const prov = quizProvider();
+      if (prov && !getQuizGroups().length) autoStartQuiz();
+      else if (prov && ctx.isQuiz) runAutoQuizAll(true, prov);
     }
     if (ctx.kuesionerStrong && settings.autoKuesioner) {
       const n = fillKuesioner(settings.kuesionerMode);

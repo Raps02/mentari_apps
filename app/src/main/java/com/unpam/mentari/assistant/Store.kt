@@ -14,18 +14,21 @@ object Store {
     private const val DATA_PREFS = "ext_storage"
     private const val DATA_KEY = "data"
     private const val SECRET_PREFS = "secrets"
-    private val SECRET_KEYS = setOf("groqApiKey", "classaiApiKey")
+    private val SECRET_KEYS = setOf("groqApiKey", "classaiApiKey", "deepseekApiKey")
     private const val PLACEHOLDER = "__android__"
     private val lock = Any()
 
     fun secrets(ctx: Context): SharedPreferences = ctx.getSharedPreferences(SECRET_PREFS, Context.MODE_PRIVATE)
     fun groqKey(ctx: Context): String = secrets(ctx).getString("groqApiKey", "") ?: ""
     fun classaiKey(ctx: Context): String = secrets(ctx).getString("classaiApiKey", "") ?: ""
+    fun deepseekKey(ctx: Context): String = secrets(ctx).getString("deepseekApiKey", "") ?: ""
 
-    fun setKeys(ctx: Context, groq: String, classai: String) {
+    fun setKeys(ctx: Context, groq: String, classai: String, deepseek: String) {
+        val clean = { v: String -> v.trim().trim('"', '\'') }
         secrets(ctx).edit()
-            .putString("groqApiKey", groq.trim().trim('"', '\''))
-            .putString("classaiApiKey", classai.trim().trim('"', '\''))
+            .putString("groqApiKey", clean(groq))
+            .putString("classaiApiKey", clean(classai))
+            .putString("deepseekApiKey", clean(deepseek))
             .apply()
     }
 
@@ -44,6 +47,7 @@ object Store {
         SECRET_KEYS.forEach { obj.remove(it) }
         if (groqKey(ctx).isNotEmpty()) obj.put("groqApiKey", PLACEHOLDER)
         if (classaiKey(ctx).isNotEmpty()) obj.put("classaiApiKey", PLACEHOLDER)
+        if (deepseekKey(ctx).isNotEmpty()) obj.put("deepseekApiKey", PLACEHOLDER)
         return obj
     }
 

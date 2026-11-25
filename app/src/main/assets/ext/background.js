@@ -88,8 +88,56 @@ async function callClassAI(apiKey, system, user, maxTokens, temperature = 0.3) {
   return out;
 }
 
-// Pilih penyedia AI sesuai tombol yang diklik: "groq" atau "classai".
+// DeepSeek (api.deepseek.com) — kompatibel OpenAI Chat Completions. Saldo top-up tidak hangus.
+// Nama model berganti-ganti; dicoba berurutan dari yang terbaru ke nama lama.
+const DEEPSEEK_URL = "https://api.deepseek.com/chat/completions";
+const DEEPSEEK_MODELS = ["deepseek-flash", "deepseek-v4-flash", "deepseek-chat"];
+
+async function callDeepSeek(apiKey, system, user, maxTokens, temperature = 0.3) {
+  const errors = [];
+  for (const model of DEEPSEEK_MODELS) {
+    let res;
+    try {
+      res = await fetch(DEEPSEEK_URL, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${apiKey.trim()}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model,
+          max_tokens: maxTokens,
+          temperature,
+          messages: [
+            { role: "system", content: system },
+            { role: "user", content: user }
+          ]
+        })
+      });
+    } catch (e) {
+      throw new Error("Gagal menghubungi DeepSeek: " + e.message);
+    }
+    if (!res.ok) {
+      let detail = "";
+      try { const j = await res.json(); detail = j?.error?.message || j?.message || ""; } catch {}
+      // Key salah / saldo habis: tidak ada gunanya mencoba model lain.
+      if (res.status === 401) throw new Error("DeepSeek API Key tidak valid (HTTP 401)");
+      if (res.status === 402) throw new Error("Saldo DeepSeek habis (HTTP 402). Top up di platform.deepseek.com");
+      errors.push(`${model} (HTTP ${res.status}${detail ? ": " + detail : ""})`);
+      continue; // mis. nama model tidak dikenal -> coba nama berikutnya
+    }
+    const data = await res.json();
+    const text = String(data?.choices?.[0]?.message?.content || "").trim();
+    if (text) return text;
+    errors.push(`${model} (respons kosong)`);
+  }
+  throw new Error("Gagal memanggil DeepSeek: " + errors.join(" | ").slice(0, 200));
+}
+
+// Pilih penyedia AI sesuai tombol yang diklik: "groq", "classai", atau "deepseek".
 async function callAI(provider, system, user, maxTokens, temperature, effort = "medium") {
+  if (provider === "deepseek") {
+    const { deepseekApiKey } = await chrome.storage.local.get("deepseekApiKey");
+    if (!deepseekApiKey) throw new Error("DeepSeek API Key belum diatur. Klik ikon extension untuk mengisinya.");
+    return callDeepSeek(deepseekApiKey, system, user, maxTokens, temperature);
+  }
   if (provider === "classai") {
     const { classaiApiKey } = await chrome.storage.local.get("classaiApiKey");
     if (!classaiApiKey) throw new Error("ClassAI API Key belum diatur. Klik ikon extension untuk mengisinya.");
